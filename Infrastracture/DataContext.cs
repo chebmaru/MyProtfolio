@@ -15,8 +15,8 @@ namespace Infrastracture
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
-            modelBuilder.Entity<Owner>().Property(x => x.Id).HasDefaultValue("NEWID()");
-            modelBuilder.Entity<PortfolioItem>().Property(x => x.Id).HasDefaultValue("NEWID()");
+            modelBuilder.Entity<Owner>().Property(x => x.Id).HasDefaultValueSql("NEWID()");
+            modelBuilder.Entity<PortfolioItem>().Property(x => x.Id).HasDefaultValueSql("NEWID()");
 
             modelBuilder.Entity<Owner>().HasData(
                 new Owner()
