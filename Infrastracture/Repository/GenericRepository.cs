@@ -17,7 +17,6 @@ namespace Infrastracture.Repository
             table = _context.Set<T>();
         }
 
-
         public void Delete(object id)
         {
             T existing = GetById(id);
