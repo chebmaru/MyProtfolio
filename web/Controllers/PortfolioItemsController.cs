@@ -7,34 +7,39 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using Core.Entities;
 using Infrastracture;
+using web.ViewModels;
+using Microsoft.AspNetCore.Hosting;
+using System.IO;
+using Core.Interfaces;
 
 namespace web.Controllers
 {
     public class PortfolioItemsController : Controller
     {
-        private readonly DataContext _context;
+        private readonly IUnitOfWork<PortfolioItem> _portfolio;
+        private readonly IHostingEnvironment _hosting;
 
-        public PortfolioItemsController(DataContext context)
+        public PortfolioItemsController(IUnitOfWork<PortfolioItem> portfolio, IHostingEnvironment hosting)
         {
-            _context = context;
+            _portfolio = portfolio;
+            _hosting = hosting;
         }
 
         // GET: PortfolioItems
-        public async Task<IActionResult> Index()
+        public IActionResult Index()
         {
-            return View(await _context.PortfolioItems.ToListAsync());
+            return View(_portfolio.Entity.GetAll());
         }
 
         // GET: PortfolioItems/Details/5
-        public async Task<IActionResult> Details(Guid? id)
+        public IActionResult Details(Guid? id)
         {
             if (id == null)
             {
                 return NotFound();
             }
 
-            var portfolioItem = await _context.PortfolioItems
-                .FirstOrDefaultAsync(m => m.Id == id);
+            var portfolioItem = _portfolio.Entity.GetById(id);
             if (portfolioItem == null)
             {
                 return NotFound();
@@ -54,32 +59,51 @@ namespace web.Controllers
         // more details, see http://go.microsoft.com/fwlink/?LinkId=317598.
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create([Bind("ProjectName,Description,ImageUrl,Id")] PortfolioItem portfolioItem)
+        public async Task<IActionResult> Create(PortfolioViewModel model)
         {
+            
             if (ModelState.IsValid)
             {
-                portfolioItem.Id = Guid.NewGuid();
-                _context.Add(portfolioItem);
-                await _context.SaveChangesAsync();
+                if (model.File != null)
+                {
+                    string uploads = Path.Combine(_hosting.WebRootPath, @"img/portfolio");
+                    string fullPath = Path.Combine(uploads, model.File.FileName);
+                    model.File.CopyTo(new FileStream(fullPath, FileMode.Create));
+                }
+                PortfolioItem portfolioItem = new PortfolioItem
+                {
+                    ProjectName = model.ProjectName,
+                    Description = model.Description,
+                    ImageUrl = model.File.FileName
+                };
+                _portfolio.Entity.Insert(portfolioItem);
+                _portfolio.Save();
+                 
                 return RedirectToAction(nameof(Index));
             }
-            return View(portfolioItem);
+            return View(model);
         }
 
         // GET: PortfolioItems/Edit/5
-        public async Task<IActionResult> Edit(Guid? id)
+        public IActionResult Edit(Guid? id)
         {
             if (id == null)
             {
                 return NotFound();
             }
 
-            var portfolioItem = await _context.PortfolioItems.FindAsync(id);
+            var portfolioItem = _portfolio.Entity.GetById(id);
             if (portfolioItem == null)
             {
                 return NotFound();
             }
-            return View(portfolioItem);
+            PortfolioViewModel portfolioViewModel = new PortfolioViewModel
+            {
+                Id = portfolioItem.Id,
+                Description = portfolioItem.Description,
+                ProjectName = portfolioItem.ProjectName
+            };
+            return View(portfolioViewModel);
         }
 
         // POST: PortfolioItems/Edit/5
@@ -87,9 +111,9 @@ namespace web.Controllers
         // more details, see http://go.microsoft.com/fwlink/?LinkId=317598.
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Edit(Guid id, [Bind("ProjectName,Description,ImageUrl,Id")] PortfolioItem portfolioItem)
+        public IActionResult Edit(Guid id, PortfolioViewModel model)
         {
-            if (id != portfolioItem.Id)
+            if (id != model.Id)
             {
                 return NotFound();
             }
@@ -98,12 +122,25 @@ namespace web.Controllers
             {
                 try
                 {
-                    _context.Update(portfolioItem);
-                    await _context.SaveChangesAsync();
+                    if (model.File != null)
+                    {
+                        string uploads = Path.Combine(_hosting.WebRootPath, @"img/portfolio");
+                        string fullPath = Path.Combine(uploads, model.File.FileName);
+                        model.File.CopyTo(new FileStream(fullPath, FileMode.Create));
+                    }
+                    PortfolioItem portfolioItem = new PortfolioItem
+                    {
+                        Id = model.Id,
+                        ProjectName = model.ProjectName,
+                        Description = model.Description,
+                        ImageUrl = model.File.FileName
+                    };
+                    _portfolio.Entity.Update(portfolioItem);
+                    _portfolio.Save();
                 }
                 catch (DbUpdateConcurrencyException)
                 {
-                    if (!PortfolioItemExists(portfolioItem.Id))
+                    if (!PortfolioItemExists(model.Id))
                     {
                         return NotFound();
                     }
@@ -114,19 +151,18 @@ namespace web.Controllers
                 }
                 return RedirectToAction(nameof(Index));
             }
-            return View(portfolioItem);
+            return View(model);
         }
 
         // GET: PortfolioItems/Delete/5
-        public async Task<IActionResult> Delete(Guid? id)
+        public IActionResult Delete(Guid? id)
         {
             if (id == null)
             {
                 return NotFound();
             }
 
-            var portfolioItem = await _context.PortfolioItems
-                .FirstOrDefaultAsync(m => m.Id == id);
+            var portfolioItem = _portfolio.Entity.GetById(id);
             if (portfolioItem == null)
             {
                 return NotFound();
@@ -138,17 +174,16 @@ namespace web.Controllers
         // POST: PortfolioItems/Delete/5
         [HttpPost, ActionName("Delete")]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> DeleteConfirmed(Guid id)
+        public IActionResult DeleteConfirmed(Guid id)
         {
-            var portfolioItem = await _context.PortfolioItems.FindAsync(id);
-            _context.PortfolioItems.Remove(portfolioItem);
-            await _context.SaveChangesAsync();
+            _portfolio.Entity.Delete(id);
+            _portfolio.Save();
             return RedirectToAction(nameof(Index));
         }
 
         private bool PortfolioItemExists(Guid id)
         {
-            return _context.PortfolioItems.Any(e => e.Id == id);
+            return _portfolio.Entity.GetAll().Any(e => e.Id == id);
         }
     }
 }
